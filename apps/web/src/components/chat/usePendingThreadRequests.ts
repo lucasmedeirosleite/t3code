@@ -27,6 +27,7 @@ import { useStableCallback } from "../../hooks/useStableCallback";
 import { getUploadedAttachments, useAttachmentUploadStore } from "../../lib/attachmentUploadQueue";
 import {
   buildPendingUserInputAnswers,
+  keepsSelectionsWithCustomAnswer,
   setPendingUserInputCustomAnswer,
   togglePendingUserInputOptionSelection,
   type PendingUserInputDraftAnswer,
@@ -320,6 +321,7 @@ export function usePendingThreadRequests(input: {
       providerAnswers[question.id] = projectPendingUserInputAnswer(
         answers[question.id],
         draft?.threadContexts ?? [],
+        question.options.map((option) => option.value ?? option.label),
       );
       const attachments = draft ? [...draft.images, ...draft.files] : [];
       if (attachments.length === 0) continue;
@@ -397,47 +399,46 @@ export function usePendingThreadRequests(input: {
     if (!activePendingUserInput) {
       return;
     }
-    // The option replaces the custom answer. Anything typed there is the
-    // user's text, so it goes back to the thread draft instead of vanishing.
-    const displacedAnswer = activePendingAnswerDrafts[questionId]?.customAnswer;
-    const currentPrompt =
-      useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.prompt ?? "";
-    const nextPrompt = carryDisplacedCustomAnswerIntoPrompt(currentPrompt, displacedAnswer);
-    if (nextPrompt !== currentPrompt) {
-      setComposerDraftPrompt(composerDraftTarget, nextPrompt);
-      toastManager.add({
-        type: "info",
-        title: "Your typed text was set aside",
-        description: "It will be back in the composer once the question is answered.",
-        data: { threadRef: activeThreadId ? { environmentId, threadId: activeThreadId } : null },
-      });
-      if (activeThreadId) {
-        const store = useComposerDraftStore.getState();
-        const questionTarget = questionAttachmentDraftId(
-          environmentId,
-          activeThreadId,
-          activePendingUserInput.requestId,
-          questionId,
-        );
-        store.addThreadContexts(
-          composerDraftTarget,
-          threadContextsReferencedByAnswer(
-            displacedAnswer ?? "",
-            store.getComposerDraft(questionTarget)?.threadContexts ?? [],
-          ),
-          { appendReference: false },
-        );
+    const question =
+      (activePendingProgress?.activeQuestion?.id === questionId
+        ? activePendingProgress.activeQuestion
+        : undefined) ?? activePendingUserInput.questions.find((entry) => entry.id === questionId);
+    if (!question) return;
+    const retainsCustomAnswer = keepsSelectionsWithCustomAnswer(question);
+    if (!retainsCustomAnswer) {
+      // Replaced custom answers belong to the user's thread draft, not the selected option.
+      const displacedAnswer = activePendingAnswerDrafts[questionId]?.customAnswer;
+      const currentPrompt =
+        useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.prompt ?? "";
+      const nextPrompt = carryDisplacedCustomAnswerIntoPrompt(currentPrompt, displacedAnswer);
+      if (nextPrompt !== currentPrompt) {
+        setComposerDraftPrompt(composerDraftTarget, nextPrompt);
+        toastManager.add({
+          type: "info",
+          title: "Your typed text was set aside",
+          description: "It will be back in the composer once the question is answered.",
+          data: { threadRef: activeThreadId ? { environmentId, threadId: activeThreadId } : null },
+        });
+        if (activeThreadId) {
+          const store = useComposerDraftStore.getState();
+          const questionTarget = questionAttachmentDraftId(
+            environmentId,
+            activeThreadId,
+            activePendingUserInput.requestId,
+            questionId,
+          );
+          store.addThreadContexts(
+            composerDraftTarget,
+            threadContextsReferencedByAnswer(
+              displacedAnswer ?? "",
+              store.getComposerDraft(questionTarget)?.threadContexts ?? [],
+            ),
+            { appendReference: false },
+          );
+        }
       }
     }
     setPendingUserInputAnswersByRequestId((existing) => {
-      const question =
-        (activePendingProgress?.activeQuestion?.id === questionId
-          ? activePendingProgress.activeQuestion
-          : undefined) ?? activePendingUserInput.questions.find((entry) => entry.id === questionId);
-      if (!question) {
-        return existing;
-      }
-
       return {
         ...existing,
         [activePendingRequestKey]: {
@@ -450,8 +451,10 @@ export function usePendingThreadRequests(input: {
         },
       };
     });
-    promptRef.current = "";
-    composerRef.current?.resetCursorState({ cursor: 0 });
+    if (!retainsCustomAnswer) {
+      promptRef.current = "";
+      composerRef.current?.resetCursorState({ cursor: 0 });
+    }
   };
   const onSelectActivePendingUserInputOptionStable = useStableCallback(
     onSelectActivePendingUserInputOption,

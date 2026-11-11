@@ -14,13 +14,28 @@ import { collectInlineContextIds } from "./lib/composerContextReferences";
 export function projectPendingUserInputAnswer(
   answer: unknown,
   threadContexts: ReadonlyArray<ThreadContextRecord>,
-) {
-  if (typeof answer !== "string" || threadContexts.length === 0) return answer;
+  optionValues: ReadonlyArray<string> = [],
+): unknown {
+  if (threadContexts.length === 0 || (typeof answer !== "string" && !Array.isArray(answer)))
+    return answer;
   const recordsById = new Map(threadContexts.map((record) => [record.contextId, record]));
-  return replaceComposerContextReferences(answer, (reference) => {
-    const record = reference.kind === "thread" ? recordsById.get(reference.contextId) : undefined;
-    return record ? formatThreadLink(record, reference.label) : reference.source;
-  });
+  const projectText = (text: string) =>
+    replaceComposerContextReferences(text, (reference) => {
+      const record = reference.kind === "thread" ? recordsById.get(reference.contextId) : undefined;
+      return record ? formatThreadLink(record, reference.label) : reference.source;
+    });
+  if (typeof answer === "string") return projectText(answer);
+  let projected: unknown[] | undefined;
+  for (let index = 0; index < answer.length; index++) {
+    const entry: unknown = answer[index];
+    const next =
+      typeof entry === "string" && !optionValues.includes(entry) ? projectText(entry) : entry;
+    if (next !== entry) {
+      projected ??= answer.slice();
+      projected[index] = next;
+    }
+  }
+  return projected ?? answer;
 }
 
 // Question drafts retain deleted chip records for undo; only transfer referenced records.

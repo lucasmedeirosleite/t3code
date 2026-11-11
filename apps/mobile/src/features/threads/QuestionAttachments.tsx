@@ -1,3 +1,4 @@
+import { keepsSelectionsWithCustomAnswer } from "@t3tools/client-runtime/state/pending-user-input";
 import { settlePromise, squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import { AsyncResult } from "effect/reactivity";
 import * as Dialog from "../../components/ui/Dialog";
@@ -65,12 +66,12 @@ export function QuestionAttachments(props: {
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- releases keyboard ownership on unmount, since an unmounted native input never emits blur
   useEffect(() => () => releaseFocus(), []);
   // A controlled value makes Fabric rebuild the native text on every keystroke, which discards
-  // iOS's pending autocorrection. The input owns its text; the only outside write is an option
-  // selection clearing the draft.
+  // iOS's pending autocorrection. The input owns its text; the only outside write is a
+  // single-choice option selection clearing the draft.
   const inputRef = useRef<TextInputInstance>(null);
   const [initialText] = useState(props.value);
   const nativeText = useRef(props.value);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- pushes an option selection's cleared draft into the uncontrolled native input
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- pushes a single-choice option selection's cleared draft into the uncontrolled native input
   useEffect(() => {
     if (props.value !== "" || nativeText.current === "") return;
     nativeText.current = "";
@@ -224,7 +225,11 @@ export function QuestionAttachments(props: {
             focusedRef.current = false;
             onInputFocusChange?.(false);
           }}
-          placeholder="Or type a custom answer"
+          placeholder={
+            keepsSelectionsWithCustomAnswer(props.question)
+              ? "Add your own answer to the checked options"
+              : "Or type a custom answer"
+          }
           className="min-h-[54px] rounded-2xl border border-input-border bg-input px-3.5 py-3 font-sans text-base text-foreground"
         />
       </TextInputWrapper>
