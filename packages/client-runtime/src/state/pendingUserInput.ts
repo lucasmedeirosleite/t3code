@@ -56,6 +56,16 @@ export function normalizeSelectedOptionValues(
   );
 }
 
+export function keepsSelectionsWithCustomAnswer(
+  question: Pick<PendingUserInputQuestion, "multiSelect" | "allowCustomAnswer" | "initialAnswer">,
+): boolean {
+  return (
+    question.multiSelect === true &&
+    question.allowCustomAnswer !== false &&
+    question.initialAnswer === undefined
+  );
+}
+
 /** The answer to submit for one question, or null while it is unanswered. */
 export function resolvePendingUserInputAnswer(
   question: PendingUserInputQuestion,
@@ -68,11 +78,13 @@ export function resolvePendingUserInputAnswer(
       : question.initialAnswer !== undefined
         ? (draft?.customAnswer ?? null)
         : normalizeDraftAnswer(draft?.customAnswer);
+  const selectedOptionValues = normalizeSelectedOptionValues(question, draft?.selectedOptionValues);
   if (customAnswer !== null && customAnswer.length > 0) {
-    return customAnswer;
+    return keepsSelectionsWithCustomAnswer(question) && selectedOptionValues.length > 0
+      ? [...selectedOptionValues, customAnswer]
+      : customAnswer;
   }
 
-  const selectedOptionValues = normalizeSelectedOptionValues(question, draft?.selectedOptionValues);
   if (question.multiSelect) {
     return selectedOptionValues.length > 0
       ? selectedOptionValues
@@ -96,7 +108,8 @@ export function setPendingUserInputCustomAnswer(
   }
 
   const selectedOptionValues =
-    question.initialAnswer !== undefined || customAnswer.trim().length > 0
+    !keepsSelectionsWithCustomAnswer(question) &&
+    (question.initialAnswer !== undefined || customAnswer.trim().length > 0)
       ? undefined
       : normalizeSelectedOptionValues(question, draft?.selectedOptionValues);
   return {
@@ -110,7 +123,11 @@ export function isPendingUserInputOptionSelected(
   draft: PendingUserInputDraftAnswer | undefined,
   optionValue: string,
 ): boolean {
-  if (question.allowCustomAnswer !== false && normalizeDraftAnswer(draft?.customAnswer)) {
+  if (
+    !keepsSelectionsWithCustomAnswer(question) &&
+    question.allowCustomAnswer !== false &&
+    normalizeDraftAnswer(draft?.customAnswer)
+  ) {
     return false;
   }
 
@@ -144,7 +161,7 @@ export function togglePendingUserInputOptionSelection(
       : [...selectedOptionValues, resolvedOptionValue];
 
     return {
-      customAnswer: "",
+      customAnswer: keepsSelectionsWithCustomAnswer(question) ? (draft?.customAnswer ?? "") : "",
       ...(nextSelectedOptionValues.length > 0
         ? { selectedOptionValues: nextSelectedOptionValues }
         : {}),

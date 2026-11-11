@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   buildPendingUserInputAnswers,
   isPendingUserInputOptionSelected,
+  keepsSelectionsWithCustomAnswer,
   resolvePendingUserInputAnswer,
   setPendingUserInputCustomAnswer,
   togglePendingUserInputOptionSelection,
@@ -29,6 +30,17 @@ const nativeChoiceQuestion = {
   ],
   allowCustomAnswer: false,
   multiSelect: false,
+} as const;
+
+const multiSelectQuestion = {
+  id: "install",
+  header: "Install",
+  question: "What should I install?",
+  options: [
+    { label: "A", description: "A" },
+    { label: "B", description: "B" },
+  ],
+  multiSelect: true,
 } as const;
 
 describe("resolvePendingUserInputAnswer", () => {
@@ -154,6 +166,64 @@ describe("setPendingUserInputCustomAnswer", () => {
         result: { selectedOptionValues: ["second"], customAnswer: "stale draft" },
       }),
     ).toEqual({ result: "second" });
+  });
+});
+
+describe("multi-select with a custom answer", () => {
+  it("keeps checked options while typing and submits both", () => {
+    const firstSelected = togglePendingUserInputOptionSelection(
+      multiSelectQuestion,
+      undefined,
+      "A",
+    );
+    const bothSelected = togglePendingUserInputOptionSelection(
+      multiSelectQuestion,
+      firstSelected,
+      "B",
+    );
+    const typed = setPendingUserInputCustomAnswer(multiSelectQuestion, bothSelected, " also C ");
+
+    expect(isPendingUserInputOptionSelected(multiSelectQuestion, typed, "A")).toBe(true);
+    expect(keepsSelectionsWithCustomAnswer(multiSelectQuestion)).toBe(true);
+    expect(resolvePendingUserInputAnswer(multiSelectQuestion, typed)).toEqual(["A", "B", "also C"]);
+    expect(
+      resolvePendingUserInputAnswer(
+        multiSelectQuestion,
+        setPendingUserInputCustomAnswer(multiSelectQuestion, typed, ""),
+      ),
+    ).toEqual(["A", "B"]);
+  });
+
+  it("keeps typed text when an option is checked afterwards", () => {
+    const typed = setPendingUserInputCustomAnswer(multiSelectQuestion, undefined, "also C");
+
+    expect(resolvePendingUserInputAnswer(multiSelectQuestion, typed)).toBe("also C");
+    expect(
+      resolvePendingUserInputAnswer(
+        multiSelectQuestion,
+        togglePendingUserInputOptionSelection(multiSelectQuestion, typed, "B"),
+      ),
+    ).toEqual(["B", "also C"]);
+  });
+
+  it.each([
+    {
+      name: "required-choice",
+      question: { ...multiSelectQuestion, allowCustomAnswer: false },
+      expected: ["A"],
+    },
+    {
+      name: "prefilled",
+      question: { ...multiSelectQuestion, initialAnswer: "draft" },
+      expected: "also C",
+    },
+  ])("keeps pick-or-type for a $name question", ({ question, expected }) => {
+    expect(keepsSelectionsWithCustomAnswer(question)).toBe(false);
+
+    const selected = togglePendingUserInputOptionSelection(question, undefined, "A");
+    const typed = setPendingUserInputCustomAnswer(question, selected, "also C");
+
+    expect(resolvePendingUserInputAnswer(question, typed)).toEqual(expected);
   });
 });
 
