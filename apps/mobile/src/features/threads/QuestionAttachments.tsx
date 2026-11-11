@@ -66,12 +66,12 @@ export function QuestionAttachments(props: {
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- releases keyboard ownership on unmount, since an unmounted native input never emits blur
   useEffect(() => () => releaseFocus(), []);
   // A controlled value makes Fabric rebuild the native text on every keystroke, which discards
-  // iOS's pending autocorrection. The input owns its text; the only outside write is a
-  // single-choice option selection clearing the draft.
+  // iOS's pending autocorrection. The input owns its text; the only outside write comes from
+  // an option selection that replaces the draft.
   const inputRef = useRef<TextInputInstance>(null);
   const [initialText] = useState(props.value);
   const nativeText = useRef(props.value);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- pushes a single-choice option selection's cleared draft into the uncontrolled native input
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- updates the uncontrolled native input after an option selection that replaces the draft
   useEffect(() => {
     if (props.value !== "" || nativeText.current === "") return;
     nativeText.current = "";

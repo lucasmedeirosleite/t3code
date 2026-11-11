@@ -82,7 +82,7 @@ export const extractOmpElicitationForm: NonNullable<
     request.message,
   );
   if (parsed === undefined) return undefined;
-  const questions = parsed.questions.map((question) => {
+  const questions = parsed.questions.map((question, index) => {
     const pair = pairs.get(question.id);
     if (pair === undefined) return question;
     const title = pair.property.title;
@@ -93,7 +93,7 @@ export const extractOmpElicitationForm: NonNullable<
       header:
         typeof description === "string" && description.trim() !== ""
           ? description.trim()
-          : question.header,
+          : `Question ${index + 1}`,
     };
     delete merged.allowCustomAnswer;
     return merged;

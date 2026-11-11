@@ -51,30 +51,57 @@ describe("extractOmpElicitationForm questions", () => {
   });
 
   it.each([
-    { name: "required single", field: single, multiSelect: undefined },
-    { name: "multi with minItems", field: { ...multi, minItems: 1 }, multiSelect: true },
-  ])("merges the HTML form <name>_other field for $name", ({ field, multiSelect }) => {
-    const form = extractOmpElicitationForm(
-      request({ install: field, install_other: singleOther }, ["install"]),
-    );
-    assert.isDefined(form);
-    assert.deepStrictEqual(
-      form.questions.map(({ id, question, allowCustomAnswer, multiSelect }) => ({
-        id,
-        question,
-        allowCustomAnswer,
-        multiSelect,
-      })),
-      [
-        {
-          id: "install",
-          question: "What should I install?",
-          allowCustomAnswer: undefined,
+    {
+      name: "required single with description",
+      field: { ...single, description: "Tools" },
+      expectedHeader: "Tools",
+      expectedMultiSelect: undefined,
+    },
+    {
+      name: "multi with minItems",
+      field: { ...multi, minItems: 1 },
+      expectedHeader: "Question 1",
+      expectedMultiSelect: true,
+    },
+    {
+      name: "single without description",
+      field: single,
+      expectedHeader: "Question 1",
+      expectedMultiSelect: undefined,
+    },
+    {
+      name: "single with blank description",
+      field: { ...single, description: "   " },
+      expectedHeader: "Question 1",
+      expectedMultiSelect: undefined,
+    },
+  ])(
+    "merges the HTML form <name>_other field for $name",
+    ({ field, expectedHeader, expectedMultiSelect }) => {
+      const form = extractOmpElicitationForm(
+        request({ install: field, install_other: singleOther }, ["install"]),
+      );
+      assert.isDefined(form);
+      assert.deepStrictEqual(
+        form.questions.map(({ id, header, question, allowCustomAnswer, multiSelect }) => ({
+          id,
+          header,
+          question,
+          allowCustomAnswer,
           multiSelect,
-        },
-      ],
-    );
-  });
+        })),
+        [
+          {
+            id: "install",
+            header: expectedHeader,
+            question: "What should I install?",
+            allowCustomAnswer: undefined,
+            multiSelect: expectedMultiSelect,
+          },
+        ],
+      );
+    },
+  );
 
   it("pairs a choice with the collision-suffixed field, leaving a real field of the same name", () => {
     const form = extractOmpElicitationForm(
@@ -160,7 +187,7 @@ describe("extractOmpElicitationForm questions", () => {
     assert.deepStrictEqual(
       form.questions.map(({ id, header, options }) => [id, header, options.length]),
       [
-        ["install", "What should I install?", 2],
+        ["install", "Question 1", 2],
         ["notes", "Notes", 0],
       ],
     );
@@ -222,12 +249,14 @@ describe("extractOmpElicitationForm questions", () => {
         q0: { type: "string", oneOf: options },
         q0__other: legacyOther,
         notes: { type: "string" },
+        q1: single,
+        q1__other: legacyOther,
       }),
     );
     assert.isDefined(form);
     assert.deepStrictEqual(
       form.questions.map(({ header }) => header),
-      ["Question 1", "Question 2"],
+      ["Question 1", "Question 2", "Question 3"],
     );
   });
 
