@@ -38,7 +38,11 @@ const prompt = {
   })),
 };
 
-function questionProjection(threadId: ThreadId, requestIds = ["first", "second"]) {
+function questionProjection(
+  threadId: ThreadId,
+  requestIds = ["first", "second"],
+  questions: ReadonlyArray<(typeof prompt.questions)[number]> = prompt.questions,
+) {
   const projection = makeThreadProjectionFixture();
   return {
     ...projection,
@@ -71,7 +75,7 @@ function questionProjection(threadId: ThreadId, requestIds = ["first", "second"]
       updatedAt: projection.updatedAt,
       type: "user_input_request" as const,
       requestId: RuntimeRequestId.make(id),
-      questions: prompt.questions,
+      questions,
     })),
   } satisfies OrchestrationV2ThreadProjection;
 }
@@ -179,6 +183,32 @@ it("tells the user when an option click moves their typed answer into the hidden
     customAnswer: "second try",
   });
   expect(toast).toHaveBeenCalledTimes(1);
+});
+
+it("keeps typed text in a multi-select answer when an option is clicked", async () => {
+  using _timers = fakeTimers();
+  const environmentId = EnvironmentId.make("multi-select-environment");
+  const draftTarget = { environmentId, threadId: threadRef.threadId };
+  using toast = vi.spyOn(toastManager, "add");
+  await using _screen = await render(
+    <PendingRequestsProbe
+      environmentId={environmentId}
+      projection={questionProjection(
+        threadRef.threadId,
+        ["first"],
+        prompt.questions.map((question) => ({ ...question, multiSelect: true })),
+      )}
+    />,
+  );
+
+  await act(() => requests.onChangeActivePendingUserInputCustomAnswer("question-0", "also C"));
+  await act(() => requests.onSelectActivePendingUserInputOption("question-0", "Incremental"));
+  expect(requests.activePendingDraftAnswers["question-0"]).toMatchObject({
+    customAnswer: "also C",
+    selectedOptionValues: ["Incremental"],
+  });
+  expect(useComposerDraftStore.getState().getComposerDraft(draftTarget)?.prompt ?? "").toBe("");
+  expect(toast).not.toHaveBeenCalled();
 });
 
 function QuestionPositionProbe(props: ProbeProps) {

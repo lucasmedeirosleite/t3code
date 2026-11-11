@@ -14,8 +14,17 @@ import { collectInlineContextIds } from "./lib/composerContextReferences";
 export function projectPendingUserInputAnswer(
   answer: unknown,
   threadContexts: ReadonlyArray<ThreadContextRecord>,
-) {
-  if (typeof answer !== "string" || threadContexts.length === 0) return answer;
+  optionValues: ReadonlyArray<string> = [],
+): unknown {
+  if (threadContexts.length === 0) return answer;
+  if (Array.isArray(answer)) {
+    // Multi-select answers carry typed text after the exact option values.
+    const projected = answer.map((entry) =>
+      optionValues.includes(entry) ? entry : projectPendingUserInputAnswer(entry, threadContexts),
+    );
+    return projected.every((entry, index) => entry === answer[index]) ? answer : projected;
+  }
+  if (typeof answer !== "string") return answer;
   const recordsById = new Map(threadContexts.map((record) => [record.contextId, record]));
   return replaceComposerContextReferences(answer, (reference) => {
     const record = reference.kind === "thread" ? recordsById.get(reference.contextId) : undefined;

@@ -33,6 +33,13 @@ describe("projectPendingUserInputAnswer", () => {
     expect(projectPendingUserInputAnswer(options, [record])).toBe(options);
     expect(projectPendingUserInputAnswer("  Edited answer\n", [record])).toBe("  Edited answer\n");
   });
+
+  it("links thread chips in typed text sent with checked options, leaving option values exact", () => {
+    const chip = formatInlineContextReference(threadContextReference(record));
+    expect(
+      projectPendingUserInputAnswer([" first\t", `See ${chip}`], [record], [" first\t", "second"]),
+    ).toEqual([" first\t", "See [Reference work](t3-thread://v2/env-answer/reference-thread)"]);
+  });
 });
 
 describe("threadContextsReferencedByAnswer", () => {
